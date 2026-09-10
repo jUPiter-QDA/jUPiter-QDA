@@ -10,7 +10,6 @@ function Dashboard() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState({ isOpen: false, project: null });
-  const [theme, setTheme] = useState(localStorage.getItem('app-theme') || 'dark');
   const navigate = useNavigate();
 
   useEffect(() => {

@@ -1,67 +1,66 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import { useWorkspace } from "../context/WorkspaceContext";
+import { getRandomColor } from "../utils/colors";
+import { buildDropdownTree } from "../utils/codeTree";
 
-export default function QuickCodeModal({ isOpen, 
+// The quick-code form owns all of its state. It is conditionally mounted, so
+// every open starts from a clean form; onApply receives the form values.
+export default function QuickCodeModal({ isOpen,
                                          selectionRect,
                                          selectionText,
-                                         quickCodeMode, 
-                                         setQuickCodeMode,
-                                         selectedExistingCodeId,
-                                         setSelectedExistingCodeId,
-                                         autoUpcode,
-                                         setAutoUpcode,
-                                         quickCodeName,
-                                         setQuickCodeName,
-                                         quickCodeColor,
-                                         setQuickCodeColor,
-                                         projectCodes,
-                                         quickCodeParentId,
-                                         setQuickCodeParentId,
                                          onApply,
                                          onCancel }) {
+  const { projectCodes } = useWorkspace();
+  const codes = projectCodes || [];
 
-    if(!isOpen) return null;
+  const [quickCodeMode, setQuickCodeMode] = useState(codes.length > 0 ? "existing" : "new");
+  const [selectedExistingCodeId, setSelectedExistingCodeId] = useState(
+    codes.length > 0 ? codes[0].id.toString() : ""
+  );
+  const [autoUpcode, setAutoUpcode] = useState(false);
+  const [quickCodeName, setQuickCodeName] = useState(
+    selectionText.length > 30 ? `${selectionText.slice(0, 27)}...` : selectionText
+  );
+  const [quickCodeParentId, setQuickCodeParentId] = useState("");
+  const [quickCodeColor, setQuickCodeColor] = useState(getRandomColor());
 
-    const getFullPath = (code, allCodes) => {
-        if (!code.parent_id) return code.name;
-        const parent = allCodes.find((c) => c.id === code.parent_id);
-        if (parent) return `${getFullPath(parent, allCodes)} > ${code.name}`;
-        return code.name;
-    };
+  if (!isOpen) return null;
 
-  const orderedDropdownCodes = [];
-    if (projectCodes) {
-        const buildDropdownTree = (parentId) => {
-        const children = projectCodes.filter((code) => code.parent_id === parentId);
-        children.forEach((child) => {
-            orderedDropdownCodes.push(child);
-            buildDropdownTree(child.id);
-        });
-        };
-        buildDropdownTree(null);
-        projectCodes.forEach((code) => {
-        if (!orderedDropdownCodes.find((oc) => oc.id === code.id) && !code.parent_id) {
-            orderedDropdownCodes.push(code);
-        }
-        });
-    }
+  const getFullPath = (code, allCodes) => {
+    if (!code.parent_id) return code.name;
+    const parent = allCodes.find((c) => c.id === code.parent_id);
+    if (parent) return `${getFullPath(parent, allCodes)} > ${code.name}`;
+    return code.name;
+  };
 
-    const suggestedCodes = (quickCodeMode === "new" && quickCodeName.trim().length > 0)
-        ? projectCodes.filter(c => c.name.toLowerCase().includes(quickCodeName.trim().toLowerCase()))
+  const orderedDropdownCodes = buildDropdownTree(codes);
+
+  const applyForm = () => onApply({
+    mode: quickCodeMode,
+    existingCodeId: selectedExistingCodeId,
+    autoUpcode,
+    name: quickCodeName,
+    color: quickCodeColor,
+    parentId: quickCodeParentId,
+  });
+
+  const suggestedCodes = (quickCodeMode === "new" && quickCodeName.trim().length > 0)
+        ? codes.filter(c => c.name.toLowerCase().includes(quickCodeName.trim().toLowerCase()))
         : [];
 
     return (
         <div style={{ position: "fixed", top: selectionRect.top, left: selectionRect.left, zIndex: 1000, backgroundColor: "#23232a", border: "1px solid #444", borderRadius: "10px", padding: "12px", width: "280px", color: "white", boxShadow: "0 12px 30px rgba(0, 0, 0, 0.4)" }}>
-          <div style={{ marginBottom: "6px", fontSize: "11px", color: "#b0b0c3", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "bold" }}>Selected Text</div>          
+          <div style={{ marginBottom: "6px", fontSize: "11px", color: "#b0b0c3", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "bold" }}>Selected Text</div>
           <div style={{ marginBottom: "12px", fontSize: "13px", lineHeight: "1.5", color: "#e5e7eb",fontStyle: "italic",backgroundColor: "#1a1a24",padding: "8px 10px",borderRadius: "6px",borderLeft: "3px solid #646cff",wordBreak: "break-word"}}>
-            "{selectionText.length > 120 
-              ? selectionText.replace(/\s+/g, ' ').substring(0, 120).trim() + "..." 
+            "{selectionText.length > 120
+              ? selectionText.replace(/\s+/g, ' ').substring(0, 120).trim() + "..."
               : selectionText.replace(/\s+/g, ' ')}"
           </div>
-          
+
           <div style={{ display: "grid", gap: "8px", marginBottom: "10px" }}>
             <select value={quickCodeMode === "new" ? "new" : selectedExistingCodeId} onChange={(e) => { if (e.target.value === "new") setQuickCodeMode("new"); else { setQuickCodeMode("existing"); setSelectedExistingCodeId(e.target.value); } }} style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid #555", backgroundColor: "#1f1f28", color: "white", cursor: "pointer" }}>
               <optgroup label="Hierarchical Codes">
-                {orderedDropdownCodes.map((code) => (<option key={code.id} value={code.id}>{getFullPath(code, projectCodes)}</option>))}
+                {orderedDropdownCodes.map((code) => (<option key={code.id} value={code.id}>{getFullPath(code, codes)}</option>))}
               </optgroup>
               <option value="new">✨ Create New Code...</option>
             </select>
@@ -82,7 +81,7 @@ export default function QuickCodeModal({ isOpen,
                     type="text"
                     value={quickCodeName}
                     onChange={(e) => setQuickCodeName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onApply(); } }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyForm(); } }}
                     placeholder="Code name"
                     style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid #555", backgroundColor: "#1f1f28", color: "white", boxSizing: "border-box" }}
                   />
@@ -100,14 +99,14 @@ export default function QuickCodeModal({ isOpen,
                           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
                         >
                           <div style={{ width: "12px", height: "12px", borderRadius: "50%", backgroundColor: code.color, flexShrink: 0 }}></div>
-                          <span style={{ fontSize: "13px", color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{getFullPath(code, projectCodes)}</span>
+                          <span style={{ fontSize: "13px", color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{getFullPath(code, codes)}</span>
                           <span style={{ fontSize: "11px", color: "#888", marginLeft: "auto", flexShrink: 0 }}>Reuse</span>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
-                
+
                 <select
                   value={quickCodeParentId}
                   onChange={(e) => setQuickCodeParentId(e.target.value)}
@@ -116,7 +115,7 @@ export default function QuickCodeModal({ isOpen,
                   <option value="">No Parent (Root Code)</option>
                   {orderedDropdownCodes.map((code) => (
                     <option key={code.id} value={code.id}>
-                      Assign to: {getFullPath(code, projectCodes)}
+                      Assign to: {getFullPath(code, codes)}
                     </option>
                   ))}
                 </select>
@@ -129,20 +128,20 @@ export default function QuickCodeModal({ isOpen,
             )}
           </div>
           <div style={{ display: "flex", gap: "8px" }}>
-            <button 
-              onClick={onApply} 
+            <button
+              onClick={applyForm}
               onMouseOver={(e) => e.currentTarget.style.backgroundColor = "#7a82ff"}
               onMouseOut={(e) => e.currentTarget.style.backgroundColor = "#646cff"}
-              style={{ 
-                flex: 1, padding: "8px 10px", backgroundColor: "#646cff", border: "none", 
+              style={{
+                flex: 1, padding: "8px 10px", backgroundColor: "#646cff", border: "none",
                 borderRadius: "6px", color: "white", cursor: "pointer", fontWeight: "bold",
                 transition: "all 0.2s ease"
               }}
             >
               Apply
             </button>
-            <button 
-              onClick={onCancel} 
+            <button
+              onClick={onCancel}
               onMouseOver={(e) => {
                 e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.08)";
                 e.currentTarget.style.borderColor = "#aaa";
@@ -153,8 +152,8 @@ export default function QuickCodeModal({ isOpen,
                 e.currentTarget.style.borderColor = "#555";
                 e.currentTarget.style.color = "#ccc";
               }}
-              style={{ 
-                padding: "8px 10px", backgroundColor: "transparent", border: "1px solid #555", 
+              style={{
+                padding: "8px 10px", backgroundColor: "transparent", border: "1px solid #555",
                 color: "#ccc", borderRadius: "6px", cursor: "pointer",
                 transition: "all 0.2s ease"
               }}

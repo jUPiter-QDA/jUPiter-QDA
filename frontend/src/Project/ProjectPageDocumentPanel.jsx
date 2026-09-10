@@ -2,27 +2,33 @@ import { useEffect, useState, useRef } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import MarginSidebar from "./MarginSidebar";
 import { createCode, createMemoForSegment, deleteSegment, fetchDocument, fetchSegmentsForDocument, createSegmentWithCode, updateSegment, createDocument, updateDocumentMetadata, updateDocumentContent, buildPdfPreviewUrl } from "../utils/backend-api";
-import { getRandomColor, hexToRGBA } from "../utils/colors";
+import { hexToRGBA } from "../utils/colors";
 import SegmentMemoModal from "./SegmentMemoModal";
 import QuickCodeModal from "./QuickCodeModal";
 import PdfPreviewPanel from "./PdfPreviewPanel";
 import DocumentDetailsTab from "./DocumentDetailsTab";
+import { useToast } from "../context/ToastContext";
+import { useProject } from "../context/ProjectContext";
+import { useUndo } from "../context/UndoContext";
+import { useWorkspace } from "../context/WorkspaceContext";
+import { useMemos } from "../context/MemosContext";
 
-const ProjectPageDocumentPanel = ({
-  viewerRef,
-  activeDocument,
-  projectCodes,
-  documentSegments,
-  setUploadStatus,
-  setDocumentSegments,
-  setActiveDocument, 
-  loadCodes,
-  loadDocuments,
-  pushUndoAction,
-  projectId,
-  currentSearchResult,
-  setCurrentSearchResult,
-}) => {
+const ProjectPageDocumentPanel = ({ viewerRef }) => {
+  const { projectId } = useProject();
+  const { showToast, showToastSticky } = useToast();
+  const { pushAction } = useUndo();
+  const {
+    activeDocument,
+    projectCodes,
+    documentSegments,
+    setDocumentSegments,
+    setActiveDocument,
+    refreshCodes: loadCodes,
+    refreshDocuments: loadDocuments,
+    currentSearchResult,
+    setCurrentSearchResult,
+  } = useWorkspace();
+  const { refreshMemos } = useMemos();
   const [showParentInMargin, setShowParentInMargin] = useState(false);
   const [marginBars, setMarginBars] = useState([]);
   const [segmentContextMenu, setSegmentContextMenu] = useState(null);
@@ -32,12 +38,6 @@ const ProjectPageDocumentPanel = ({
   const [selectionRect, setSelectionRect] = useState(null);
   const [selectionText, setSelectionText] = useState("");
   const [selectionOffsets, setSelectionOffsets] = useState(null);
-  const [quickCodeMode, setQuickCodeMode] = useState("new");
-  const [selectedExistingCodeId, setSelectedExistingCodeId] = useState("");
-  const [autoUpcode, setAutoUpcode] = useState(false);
-  const [quickCodeName, setQuickCodeName] = useState("");
-  const [quickCodeParentId, setQuickCodeParentId] = useState("");
-  const [quickCodeColor, setQuickCodeColor] = useState(getRandomColor());
   const [isPdfPreviewCollapsed, setIsPdfPreviewCollapsed] = useState(false);
   
   // Edit Mode & Real-Time Segment State
@@ -145,7 +145,7 @@ const ProjectPageDocumentPanel = ({
       const start = startRange.toString().length;
       const end = start + range.toString().length;
       return { start, end };
-    } catch (err) { return null; }
+    } catch { return null; }
   };
 
   const clearTextSelection = () => {
@@ -153,9 +153,6 @@ const ProjectPageDocumentPanel = ({
     setSelectionRect(null);
     setSelectionOffsets(null);
     setQuickMenuOpen(false);
-    setQuickCodeName("");
-    setQuickCodeColor(getRandomColor());
-    setQuickCodeParentId("");
   };
 
   const handleTextSelection = (e) => {
@@ -200,15 +197,6 @@ const ProjectPageDocumentPanel = ({
     setSelectionRect({ top: safeTop, left: safeLeft });
     setSelectionOffsets(offsetValues);
 
-    if (projectCodes.length > 0) {
-      setQuickCodeMode("existing");
-      setSelectedExistingCodeId(projectCodes[0].id.toString());
-    } else {
-      setQuickCodeMode("new");
-    }
-
-    setQuickCodeName(selectedText.length > 30 ? `${selectedText.slice(0, 27)}...` : selectedText);
-    setQuickCodeColor(getRandomColor());
     setQuickMenuOpen(true);
   };
 
@@ -222,25 +210,27 @@ const ProjectPageDocumentPanel = ({
     return ids;
   };
 
-  const handleQuickCodeAction = async () => {
+  // form is the payload from QuickCodeModal's onApply — the form state itself
+  // lives inside the modal.
+  const handleQuickCodeAction = async (form) => {
     if (!selectionText || !activeDocument || !selectionOffsets) return;
-    setUploadStatus("Creating quick code...");
+    showToastSticky("Creating quick code...");
 
     try {
       let finalCodeID;
       let createdCode = null;
-      if (quickCodeMode === "new") {
-        const codeName = quickCodeName.trim() || (selectionText.length > 30 ? `${selectionText.slice(0, 27)}...` : selectionText);
+      if (form.mode === "new") {
+        const codeName = form.name.trim() || (selectionText.length > 30 ? `${selectionText.slice(0, 27)}...` : selectionText);
         const exactMatch = projectCodes.find(c => c.name.toLowerCase() === codeName.toLowerCase());
-        
+
         if (exactMatch) {
           finalCodeID = exactMatch.id;
         } else {
-          const codeResponse = await createCode(projectId, { 
-              name: codeName, 
-              color: quickCodeColor, 
-              description: "Created from selected text", 
-              parent_id: quickCodeParentId ? parseInt(quickCodeParentId) : null 
+          const codeResponse = await createCode(projectId, {
+              name: codeName,
+              color: form.color,
+              description: "Created from selected text",
+              parent_id: form.parentId ? parseInt(form.parentId) : null
             });
           const createdCodeData = await codeResponse.json();
           if (!codeResponse.ok) throw new Error(createdCodeData.detail || "Failed to create quick code");
@@ -249,11 +239,11 @@ const ProjectPageDocumentPanel = ({
           loadCodes();
         }
       } else {
-        finalCodeID = parseInt(selectedExistingCodeId);
+        finalCodeID = parseInt(form.existingCodeId);
       }
 
       let codesToApply = [finalCodeID];
-      if (autoUpcode && quickCodeMode === "existing") {
+      if (form.autoUpcode && form.mode === "existing") {
         const parentIds = getParentIds(finalCodeID, projectCodes);
         codesToApply = [...codesToApply, ...parentIds];
       }
@@ -272,22 +262,19 @@ const ProjectPageDocumentPanel = ({
       );
 
       const createdSegments = await Promise.all(segmentPromises);
-      if (pushUndoAction) {
-        pushUndoAction({
-          type: createdCode ? "create-quick-code" : "create-segment",
-          code: createdCode,
-          segments: createdSegments,
-        });
-      }
-      setUploadStatus(`Applied ${createdSegments.length} code(s)!`);
-      setTimeout(() => setUploadStatus(""), 3000);
+      pushAction({
+        type: createdCode ? "create-quick-code" : "create-segment",
+        code: createdCode,
+        segments: createdSegments,
+      });
+      showToast(`Applied ${createdSegments.length} code(s)!`, 3000);
       clearTextSelection();
       window.getSelection()?.removeAllRanges();
       setDocumentSegments((prev) => [...prev, ...createdSegments]);
       loadCodes();
     } catch (error) {
       console.error(error);
-      setUploadStatus("Failed to apply code.");
+      showToastSticky("Failed to apply code.");
     }
   };
 
@@ -295,8 +282,10 @@ const ProjectPageDocumentPanel = ({
     if (!memoText.trim()) return;
     try {
       await createMemoForSegment(activeSegmentForMemo, memoText);
+      // The memo sidebar used to never learn about segment memos saved here.
+      refreshMemos(false);
       setIsMemoModalOpen(false);
-    } catch (error) {
+    } catch {
       alert("Failed to save memo");
     }
   };
@@ -329,6 +318,7 @@ const ProjectPageDocumentPanel = ({
       if (editEndOld <= seg.start_char) {
         newStart += deltaLen; newEnd += deltaLen;
       } else if (editStart >= seg.end_char) {
+        // Edit happens entirely after the segment — no adjustment needed.
       } else if (editStart >= seg.start_char && editEndOld <= seg.end_char) {
         newEnd += deltaLen;
       } else if (editStart < seg.start_char && editEndOld > seg.start_char && editEndOld <= seg.end_char) {
@@ -453,18 +443,16 @@ const ProjectPageDocumentPanel = ({
                                                     { metadata: nextMetadata });
 
       if (response.ok) {
-        if (pushUndoAction) {
-          pushUndoAction({
-            type: "edit-metadata",
-            documentId: activeDocument.id,
-            previousMetadata: currentMetadata
-          });
-        }
+        pushAction({
+          type: "edit-metadata",
+          documentId: activeDocument.id,
+          previousMetadata: currentMetadata
+        });
         if (loadDocuments) loadDocuments();
       } else {
         setDocumentMetadata(currentMetadata);
         setActiveDocument(prev => ({ ...prev, metadata: currentMetadata }));
-        setUploadStatus("Failed to delete detail.");
+        showToastSticky("Failed to delete detail.");
       }
     } catch (err) {
       console.error("Failed to delete detail:", err);
@@ -474,7 +462,7 @@ const ProjectPageDocumentPanel = ({
   };
 
   const handleSaveEdit = async () => {
-    setUploadStatus("Saving document and shifting codes...");
+    showToastSticky("Saving document and shifting codes...");
     try {
       if (activeDocument.id === "NEW_DOC_PENDING") {
         const title = activeDocument.filename.trim() || "Untitled Document";
@@ -489,12 +477,11 @@ const ProjectPageDocumentPanel = ({
         setActiveDocument({ ...savedDoc, content: editContent });
         if (loadDocuments) loadDocuments();
 
-        setUploadStatus("Document created successfully!");
-        setTimeout(() => setUploadStatus(""), 3000);
+        showToast("Document created successfully!", 3000);
         return;
       }
 
-      setUploadStatus("Saving document and shifting codes...");
+      showToastSticky("Saving document and shifting codes...");
       const docRes = await updateDocumentContent(projectId, 
                                                 activeDocument.id, 
                                                 { content: editContent });
@@ -524,11 +511,10 @@ const ProjectPageDocumentPanel = ({
       setDocumentSegments(updatedSeg);
 
       setIsEditing(false);
-      setUploadStatus("Edits saved successfully!");
-      setTimeout(() => setUploadStatus(""), 3000);
+      showToast("Edits saved successfully!", 3000);
     } catch (error) {
       console.error(error);
-      setUploadStatus("Failed to save edits.");
+      showToastSticky("Failed to save edits.");
     }
     };
 
@@ -748,14 +734,14 @@ const ProjectPageDocumentPanel = ({
         setDocumentSegments(prev => prev.filter(s => s.id !== segmentId));
         
         // Push it to your Ctrl+Z Undo Stack!
-        if (pushUndoAction && segmentSnapshot) {
-          pushUndoAction({ type: "delete-segment", segment: segmentSnapshot });
+        if (segmentSnapshot) {
+          pushAction({ type: "delete-segment", segment: segmentSnapshot });
         }
         
         setSegmentContextMenu(null);
         loadCodes(); // Refresh sidebar to update the frequency count
       } else {
-        setUploadStatus("Failed to remove code.");
+        showToastSticky("Failed to remove code.");
       }
     } catch (err) {
       console.error(err);
@@ -1039,22 +1025,9 @@ const ProjectPageDocumentPanel = ({
 
       {quickMenuOpen && selectionRect && (
         <QuickCodeModal
-          isOpen={quickMenuOpen} 
+          isOpen={quickMenuOpen}
           selectionRect={selectionRect}
           selectionText={selectionText}
-          quickCodeMode={quickCodeMode}
-          setQuickCodeMode={setQuickCodeMode}
-          selectedExistingCodeId={selectedExistingCodeId}
-          setSelectedExistingCodeId={setSelectedExistingCodeId}
-          autoUpcode={autoUpcode}
-          setAutoUpcode={setAutoUpcode}
-          quickCodeName={quickCodeName}
-          setQuickCodeName={setQuickCodeName}
-          quickCodeColor={quickCodeColor}
-          setQuickCodeColor={setQuickCodeColor}
-          projectCodes={projectCodes}
-          quickCodeParentId={quickCodeParentId}
-          setQuickCodeParentId={setQuickCodeParentId}
           onApply={handleQuickCodeAction}
           onCancel={clearTextSelection}
         />

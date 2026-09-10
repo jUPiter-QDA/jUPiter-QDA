@@ -1,28 +1,27 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useWorkspace } from "../context/WorkspaceContext";
+import { buildDropdownTree } from "../utils/codeTree";
 
-const ExportFilterModal = ({ isOpen, onClose, onExport, documents, codes }) => {
+const ExportFilterModal = ({ isOpen, onClose, onExport }) => {
+  const { documents, projectCodes: codes } = useWorkspace();
   const [selectedDocs, setSelectedDocs] = useState([]);
   const [selectedCodes, setSelectedCodes] = useState([]);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
-  useEffect(() => {
+  // Pre-select everything each time the modal opens (adjusting state during
+  // render on a prop transition — the React-recommended alternative to an effect).
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       setSelectedDocs(documents.map(d => d.id));
       setSelectedCodes(codes.map(c => c.id));
     }
-  }, [isOpen, documents, codes]);
+  }
 
   if (!isOpen) return null;
 
   // 1. Build a visual hierarchy (Tree) so children are indented under parents
-  const orderedCodes = [];
-  const buildDropdownTree = (parentId, depth = 0) => {
-    const children = codes.filter((code) => code.parent_id === parentId);
-    children.forEach((child) => {
-      orderedCodes.push({ ...child, depth });
-      buildDropdownTree(child.id, depth + 1);
-    });
-  };
-  buildDropdownTree(null);
+  const orderedCodes = buildDropdownTree(codes, true);
 
   // 2. Helper to find all descendants (children, grandchildren, etc) of a code
   const getAllDescendantIds = (codeId) => {

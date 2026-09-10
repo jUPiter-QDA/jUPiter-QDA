@@ -55,12 +55,32 @@ class CodeRepository:
             models.Code.id == code_id, models.Code.project_id == project_id
         ).first()
         if code:
-            # Delete associated memos
+            # Collect the whole subtree rooted at this code. The FK-level
+            # ON DELETE CASCADE never fires (SQLite FK enforcement is off),
+            # and SQLAlchemy's default would just re-parent children to NULL.
+            subtree_ids = [code.id]
+            frontier = [code.id]
+            while frontier:
+                child_rows = self.db.query(models.Code.id).filter(
+                    models.Code.parent_id.in_(frontier)
+                ).all()
+                frontier = [row[0] for row in child_rows]
+                subtree_ids.extend(frontier)
+
+            # Code memos are polymorphic (target_id has no FK), so delete them
+            # explicitly for every code in the subtree.
             self.db.query(models.Memo).filter(
-                models.Memo.target_type == "code", models.Memo.target_id == code_id
-            ).delete()
-            
-            self.db.delete(code)
+                models.Memo.target_type == "code", models.Memo.target_id.in_(subtree_ids)
+            ).delete(synchronize_session=False)
+
+            self.db.query(models.Segment).filter(
+                models.Segment.code_id.in_(subtree_ids)
+            ).delete(synchronize_session=False)
+
+            self.db.query(models.Code).filter(
+                models.Code.id.in_(subtree_ids)
+            ).delete(synchronize_session=False)
+
             self.db.commit()
             return True
         return False

@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { deleteSegment, fetchDocument, fetchSegmentsForDocument } from "../utils/backend-api"
+import { deleteSegment, fetchDocument } from "../utils/backend-api"
+import { useProject } from "../context/ProjectContext"
+import { useUndo } from "../context/UndoContext"
+import { useWorkspace } from "../context/WorkspaceContext"
 
 const getContrastText = (hex) => {
   if (!hex) return '#FFFFFF';
@@ -19,23 +22,24 @@ const getContrastText = (hex) => {
   return yiq >= 128 ? '#000000' : '#FFFFFF';
 };
 
-const ProjectPageCodePanel = ({
-  projectId,
-  projectCodes,
-  documents,
-  codePanelOpen,
-  activeCode,
-  refreshToken,
-  setCodePanelOpen,
-  setActiveCode,
-  setActiveDocument,
-  setDocumentSegments,
-  setPendingQuoteJump,
-  loadCodes,
-  pushUndoAction,
-}) => {
+const ProjectPageCodePanel = () => {
+  const { projectId } = useProject();
+  const { pushAction } = useUndo();
+  const {
+    projectCodes,
+    documents,
+    codePanelOpen,
+    activeCode,
+    codePanelRefreshTick: refreshToken,
+    setCodePanelOpen,
+    setActiveCode,
+    setDocumentSegments,
+    refreshCodes: loadCodes,
+    selectAllProjectSegments,
+    openDocumentAtQuote,
+  } = useWorkspace();
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
-  const [includeSubCodes, setIncludeSubCodes] = useState(true); 
+  const [includeSubCodes, setIncludeSubCodes] = useState(true);
   const [localSegments, setLocalSegments] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -48,11 +52,7 @@ const ProjectPageCodePanel = ({
     const loadQuotes = async () => {
       setLoading(true);
       try {
-        const segmentPromises = (documents || []).map((doc) =>
-          fetchSegmentsForDocument(projectId, doc.id),
-        );
-        const segmentsArrays = await Promise.all(segmentPromises);
-        const allSegments = segmentsArrays.flat().filter(s => s && !s.detail);
+        const allSegments = await selectAllProjectSegments();
 
         const getKids = (parentId) => {
           let kids = (projectCodes || []).filter(c => Number(c.parent_id) === Number(parentId)).map(c => Number(c.id));
@@ -74,7 +74,7 @@ const ProjectPageCodePanel = ({
     };
 
     loadQuotes();
-  }, [activeCode, includeSubCodes, codePanelOpen, documents, projectId, projectCodes, refreshToken]);
+  }, [activeCode, includeSubCodes, codePanelOpen, documents, projectId, projectCodes, refreshToken, selectAllProjectSegments]);
 
   useEffect(() => {
     const missingDocIds = [...new Set(localSegments.map(s => s.document_id))]
@@ -94,23 +94,9 @@ const ProjectPageCodePanel = ({
     }));
   }, [localSegments, projectId, docCache]);
 
-  const handleQuoteClick = async (quote) => {
+  const handleQuoteClick = (quote) => {
     setSelectedQuoteId(quote.id);
-
-    try {
-      const docData = await fetchDocument(projectId, quote.document_id);
-      setActiveDocument(docData);
-
-      const segData = await fetchSegmentsForDocument(projectId, quote.document_id);
-      setDocumentSegments(Array.isArray(segData) ? segData : []);
-
-      setPendingQuoteJump({
-        quoteId: quote.id,
-        document_id: quote.document_id,
-      });
-    } catch (error) {
-      console.error("Failed to load quote document:", error);
-    }
+    openDocumentAtQuote(quote.document_id, quote.id);
   };
 
   const handleDeleteSegment = async (e, segmentId) => {
@@ -128,8 +114,8 @@ const ProjectPageCodePanel = ({
         if (setDocumentSegments) {
           setDocumentSegments((prev) => prev.filter((segment) => segment.id !== segmentId));
         }
-        if (segmentSnapshot && pushUndoAction) {
-          pushUndoAction({
+        if (segmentSnapshot) {
+          pushAction({
             type: "delete-segment",
             segment: segmentSnapshot,
           });

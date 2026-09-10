@@ -1,20 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import ConfirmDeleteModal from '../Modal/ConfirmDeleteModal';
 import { createFolder, deleteFolder, fetchFolders, moveDocument, moveFolder, renameFolder, reorderFolders, updateDocumentsOrder, normalizeMetadata } from '../utils/backend-api';
+import { useToast } from '../context/ToastContext';
 
-function DocumentsSidebar({ 
-  documents, 
-  activeDocumentId, 
-  uploadStatus, 
-  uploadProgress,
-  onFileUpload, 
+function DocumentsSidebar({
+  documents,
+  activeDocumentId,
+  onFileUpload,
   onWriteDocument,
-  onDocumentClick, 
+  onDocumentClick,
   onDeleteDocument,
   onRenameDocument,
   projectId,
   loadDocuments,
 }) {
+  const { status: uploadStatus, progress: uploadProgress } = useToast();
   const [folders, setFolders] = useState([]);
   const [newFolderName, setNewFolderName] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);

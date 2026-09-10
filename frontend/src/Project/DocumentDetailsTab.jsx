@@ -143,8 +143,7 @@ export default function DocumentDetailsTab ({ projectId,
           )}
 
           {isMetadataDialogOpen && (
-              <DocumentMetadataModal 
-                projectId={projectId}
+              <DocumentMetadataModal
                 documentId={metadataDialog.documentId}
                 documentName={metadataDialog.documentName}
                 onClose={closeMetadataDialog}

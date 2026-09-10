@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { search } from "../utils/backend-api";
 
-const SearchBar = ({ projectId, onSearchResults, onResultClick }) => {
+const SearchBar = ({ projectId, onResultClick }) => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -78,11 +78,6 @@ const SearchBar = ({ projectId, onSearchResults, onResultClick }) => {
       setResults([]);
       setShowResults(false);
       setIsLoading(false);
-      
-      // Tell the parent component the search is cleared
-      if (onSearchResults) {
-        onSearchResults([]);
-      }
       return;
     }
 
@@ -104,9 +99,6 @@ const SearchBar = ({ projectId, onSearchResults, onResultClick }) => {
         if (latestQuery.current === searchQuery) {
           setResults(uniqueData);
           setShowResults(true);
-          if (onSearchResults) {
-            onSearchResults(uniqueData);
-          }
         }
       }
     } catch (error) {
@@ -134,10 +126,7 @@ const SearchBar = ({ projectId, onSearchResults, onResultClick }) => {
     setResults([]);
     setShowResults(false);
     latestQuery.current = ""; // Reset tracker
-    
-    if (onSearchResults) {
-      onSearchResults([]);
-    }
+
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }

@@ -1,19 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import ConfirmDeleteModal from "../Modal/ConfirmDeleteModal";
 
 function ProjectSettingsModal({ isOpen, onClose, currentName, currentDescription, currentLocalPath, onSave, onDelete }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
   // Whenever the modal opens, pre-fill the text boxes with the current data
-  useEffect(() => {
+  // (adjusting state during render on a prop transition — the React-recommended
+  // alternative to an effect).
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       setName(currentName || "");
       setDescription(currentDescription || "");
       setShowConfirmDelete(false);
     }
-  }, [isOpen, currentName, currentDescription]);
+  }
 
   if (!isOpen) return null;
 

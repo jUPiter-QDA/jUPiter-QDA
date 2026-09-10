@@ -1,32 +1,14 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { deleteMemo, updateMemo, fetchMemos, fetchDocument, fetchSegment } from "../utils/backend-api";
+import React, { useState } from "react";
+import { useProject } from "../context/ProjectContext";
+import { useWorkspace } from "../context/WorkspaceContext";
+import { useMemos } from "../context/MemosContext";
 
-export default function MemosSidebar({ projectId, codes = [], pushUndoAction, setActiveDocument, setDocumentSegments }) {
-  const [memos, setMemos] = useState([]);
+export default function MemosSidebar() {
+  const { projectId } = useProject();
+  const { projectCodes: codes = [] } = useWorkspace();
+  const { memos, loading, error, updateMemo, deleteMemo, openSegmentMemo } = useMemos();
   const [editingMemo, setEditingMemo] = useState(null);
   const [newMemoText, setNewMemoText] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  // --- DATA FETCHING ---
-  const loadMemos = useCallback((isInitialLoad = false) => {
-    if (!projectId) return;
-    if (isInitialLoad) setLoading(true);
-
-    fetchMemos(projectId)
-      .then((res) => setMemos(res))
-      .catch((e) => setError("Failed to load memos"))
-      .finally(() => {
-        if (isInitialLoad) setLoading(false);
-      });
-  }, [projectId]);
-
-  useEffect(() => {
-    loadMemos(true);
-    const handleBackgroundUpdate = () => loadMemos(false);
-    window.addEventListener('memos-updated', handleBackgroundUpdate);
-    return () => window.removeEventListener('memos-updated', handleBackgroundUpdate);
-  }, [loadMemos]);
 
   // --- ACTIONS ---
   const handleEdit = (memo) => {
@@ -36,47 +18,14 @@ export default function MemosSidebar({ projectId, codes = [], pushUndoAction, se
 
   const handleSave = async () => {
     if (!editingMemo) return;
-    try {
-      const res = await updateMemo(editingMemo.id, { text: newMemoText });
-      if (!res.ok) throw new Error("Failed to update memo");
-      const updatedMemo = await res.json();
-      setMemos((prev) => prev.map((m) => (m.id === updatedMemo.id ? { ...updatedMemo, target_name: m.target_name } : m)));
+    const ok = await updateMemo(editingMemo.id, newMemoText);
+    if (ok) {
       setEditingMemo(null);
       setNewMemoText("");
-    } catch {
-      setError("Failed to update memo");
     }
   };
 
-  const handleDelete = async (id) => {
-    const memoSnapshot = memos.find((m) => m.id === id);
-    setMemos((prev) => prev.filter((m) => m.id !== id));
-
-    try {
-      await deleteMemo(id);
-      if (pushUndoAction && memoSnapshot) {
-        pushUndoAction({ type: "delete-memo", memo: memoSnapshot });
-      }
-    } catch {
-      setError("Failed to delete memo");
-      loadMemos(false);
-    }
-  };
-
-  const handleSegmentMemoClick = async (segmentId) => {
-
-    try {
-      const segmentData = await fetchSegment(projectId, segmentId);
-
-      const docData = await fetchDocument(projectId, segmentData.document_id);
-      setActiveDocument(docData);
-
-      setDocumentSegments([segmentData]);
-    } catch(error) {
-      console.error("Failed to load memo document: ", error);
-    }
-
-  }
+  const handleDelete = (id) => deleteMemo(id);
 
   // --- UI RENDERER ---
   const renderMemoItem = (memo) => {
@@ -99,7 +48,7 @@ export default function MemosSidebar({ projectId, codes = [], pushUndoAction, se
       );
     } else if (memo.target_type === "segment") {
       headerContent = (
-        <div onClick={() => handleSegmentMemoClick(memo.target_id) }
+        <div onClick={() => openSegmentMemo(memo.target_id) }
           style={{ marginBottom: "12px", paddingBottom: "10px", borderBottom: "1px solid #333", display: "flex", alignItems: "flex-start", gap: "8px" }}>
           <span style={{ color: "#646cff", fontSize: "16px", lineHeight: "1" }}>❝</span>
           <span style={{ fontSize: "13px", color: "#888", fontStyle: "italic", lineHeight: "1.4", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>

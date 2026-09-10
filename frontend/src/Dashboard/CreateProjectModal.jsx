@@ -112,8 +112,8 @@ function CreateProjectModal({ isOpen, onClose, onCreate }) {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-            <button type="button" 
-              onClick={onClose} 
+            <button type="button"
+              onClick={handleCancel}
               onMouseOver={(e) => {
                 e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.08)";
                 e.currentTarget.style.borderColor = "#aaa";

@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
 import CodeMemoModal from './CodeMemoModal';
 import ConfirmDeleteModal from '../Modal/ConfirmDeleteModal';
-import { createCode, createMemo, exportProjectToDocx, mergeCodes, updateCode, updateCodesOrder } from '../utils/backend-api';
+import { exportProjectToDocx } from '../utils/backend-api';
 import { getRandomColor } from '../utils/colors';
+import { useWorkspace } from '../context/WorkspaceContext';
+import { useMemos } from '../context/MemosContext';
 
-function CodesSidebar({ projectId, codes, onDeleteCode, onRefreshCodes, onOpenCodePanel, onReorderCodes, onExportQuotesCSV, pushUndoAction }) {
+function CodesSidebar({ projectId, codes, onOpenCodePanel, onExportQuotesCSV }) {
+  const { createCode, updateCode, reorderCodes, deleteCode, mergeCodes } = useWorkspace();
+  const { createMemo } = useMemos();
   const [memoModalOpen, setMemoModalOpen] = useState(false);
   const [memoTargetCode, setMemoTargetCode] = useState(null);
   const [memoError, setMemoError] = useState(null);
@@ -44,18 +48,16 @@ function CodesSidebar({ projectId, codes, onDeleteCode, onRefreshCodes, onOpenCo
     if (!newCodeName.trim()) return;
 
     try {
-      const response = await createCode(projectId, { 
-          name: newCodeName, 
+      const ok = await createCode({
+          name: newCodeName,
           color: newCodeColor,
           parent_id: null
         });
 
-      if (response.ok) {
+      if (ok) {
         setNewCodeName(""); // Clear the input
         setAddingSubCodeTo(null);
         setNewCodeColor(getRandomColor()); // Reset color to default
-        
-        if(onRefreshCodes) onRefreshCodes();
       }
     } catch (error) {
       console.error("Failed to create code:", error);
@@ -67,17 +69,16 @@ function CodesSidebar({ projectId, codes, onDeleteCode, onRefreshCodes, onOpenCo
     if (!subCodeName.trim()) return;
 
     try {
-      const response = await createCode(projectId, {
-          name: subCodeName, 
+      const ok = await createCode({
+          name: subCodeName,
           color: subCodeColor,
           parent_id: parentId
         });
 
-      if (response.ok) {
+      if (ok) {
         setSubCodeName("");
         setSubCodeColor(getRandomColor());
         setAddingSubCodeTo(null);
-        if(onRefreshCodes) onRefreshCodes();
       }
     } catch (error) {
       console.error("Failed to create subcode:", error);
@@ -88,26 +89,12 @@ function CodesSidebar({ projectId, codes, onDeleteCode, onRefreshCodes, onOpenCo
     e.preventDefault();
     if(!editingCodeId) return;
 
-    const originalCode = codes.find(c => Number(c.id) === Number(editingCodeId));
-    if (originalCode && pushUndoAction) {
-      pushUndoAction({
-        type: "edit-code",
-        codeId: editingCodeId,
-        previousState: { name: originalCode.name, color: originalCode.color }
-      });
-    }
+    const ok = await updateCode(editingCodeId,
+                                {name: editName, color: editColor},
+                                { recordUndo: true });
 
-    try {
-      const response = await updateCode(projectId, 
-                                        editingCodeId, 
-                                        {name: editName, color: editColor});
-
-      if (response.ok) {
-        setEditingCodeId(null);
-        if(onRefreshCodes) onRefreshCodes();
-      }
-    } catch (error) {
-      console.error("Failed to update color:", error)
+    if (ok) {
+      setEditingCodeId(null);
     }
   };
 
@@ -115,13 +102,6 @@ function CodesSidebar({ projectId, codes, onDeleteCode, onRefreshCodes, onOpenCo
     setEditingCodeId(code.id);
     setEditName(code.name);
     setEditColor(code.color)
-  };
-
-  // Context menu handler
-  const handleContextMenuMemo = (e, code) => {
-    e.preventDefault();
-    setMemoTargetCode(code);
-    setMemoModalOpen(true);
   };
 
   const handleSaveMemo = async (text) => {
@@ -135,10 +115,7 @@ function CodesSidebar({ projectId, codes, onDeleteCode, onRefreshCodes, onOpenCo
       });
       setMemoModalOpen(false);
       setMemoTargetCode(null);
-
-      window.dispatchEvent(new CustomEvent('memos-updated'));
-      
-    } catch (err) {
+    } catch {
       setMemoError('Failed to save memo');
     }
   };
@@ -230,25 +207,7 @@ function CodesSidebar({ projectId, codes, onDeleteCode, onRefreshCodes, onOpenCo
       order_index: idx
     }));
 
-    if (pushUndoAction) {
-      pushUndoAction({
-        type: "reorder-codes",
-        previousState: codes.map((c, idx) => ({ 
-          id: c.id, 
-          parent_id: c.parent_id || null, 
-          order_index: c.order_index ?? idx 
-        }))
-      });
-    }
-
-    if (onReorderCodes) onReorderCodes(remainingCodes);
-
-    try {
-      await updateCodesOrder(projectId, {codes: reorderPayload});
-      if (onRefreshCodes) onRefreshCodes();
-    } catch (error) {
-      console.error("Failed to reorder codes:", error);
-    }
+    await reorderCodes(remainingCodes, reorderPayload);
   };
 
   const handleDrop = async (e, targetCode) => {
@@ -293,19 +252,6 @@ function CodesSidebar({ projectId, codes, onDeleteCode, onRefreshCodes, onOpenCo
     }); 
     setMemoTargetCode(codeId);
   }
-
-  const handleMoveCode = async (codeId, newParentId) => {
-    try {
-      const response = await updateCode(projectId, codeId, {parent_id: newParentId});
-
-      if (response.ok) {
-        setExpandedCodes(prev => new Set(prev).add(newParentId));
-        if(onRefreshCodes) onRefreshCodes();
-      }
-    } catch (error) {
-      console.error("Failed to move code:", error)
-    }
-  };
 
   const getAggregatedFrequency = (codeId) => {
     const baseCode = codes.find(c => c.id === codeId);
@@ -457,7 +403,7 @@ return (
         {renderCodes.length === 0 ? (
           <p style={{ color: '#888', fontSize: '14px' }}>No codes created yet.</p>
         ) : (
-          renderCodes.map((code, index) => {
+          renderCodes.map((code) => {
             const isSubCode = code.depth > 0;
             const isDraggingOver = dragOverId === code.id;
             const hasChildren = codes.some(c => c.parent_id === code.id);
@@ -672,7 +618,7 @@ return (
         isOpen={!!codeToDelete}
         onClose={() => setCodeToDelete(null)}
         onConfirm={() => {
-          onDeleteCode(codeToDelete.id);
+          deleteCode(codeToDelete.id);
           setCodeToDelete(null);
         }}
         title={codeToDelete ? `Delete "${codeToDelete.name}"?` : "Delete Code?"}
@@ -859,19 +805,13 @@ return (
                 disabled={!mergeModalConfig.newName.trim()}
                 onClick={async () => {
                   try {
-                    await mergeCodes(projectId, { 
-                        source_code_id: mergeModalConfig.source.id, 
+                    await mergeCodes({
+                        source_code_id: mergeModalConfig.source.id,
                         target_code_id: mergeModalConfig.target.id,
                         new_name: mergeModalConfig.newName.trim(),
                         new_color: mergeModalConfig.newColor
                       });
-                    
-                    if(onRefreshCodes) onRefreshCodes();
 
-                    window.dispatchEvent(new CustomEvent('codes-merged', { 
-                      detail: { sourceId: mergeModalConfig.source.id, targetId: mergeModalConfig.target.id } 
-                    })); 
-                    
                     setMergeModalConfig(null);
                   } catch(err) {
                     console.error(err);

@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import SearchBar from "./SearchBar";
 
-const ProjectPageTopBar = ({ projectDetails, handleExportREFI, setIsSettingsOpen, handleExportExcel,setIsExportModalOpen, projectId, onSearchResults, onSearchResultClick }) => {
+const ProjectPageTopBar = ({ projectDetails, handleExportREFI, setIsSettingsOpen, setIsExportModalOpen, projectId, onSearchResultClick }) => {
 
   const baseButtonStyle = {
     padding: "8px 14px",
@@ -25,7 +25,6 @@ const ProjectPageTopBar = ({ projectDetails, handleExportREFI, setIsSettingsOpen
           backgroundColor: "#111",
           borderBottom: "1px solid #333",
           marginBottom: "24px",
-          backgroundColor: "#111",
           display: "flex",
           flexDirection: "column",
           gap: "12px", 
@@ -61,9 +60,8 @@ const ProjectPageTopBar = ({ projectDetails, handleExportREFI, setIsSettingsOpen
           Project: {projectDetails.name}
         </h2>
         
-        <SearchBar 
-          projectId={projectId} 
-          onSearchResults={onSearchResults}
+        <SearchBar
+          projectId={projectId}
           onResultClick={onSearchResultClick}
         />
         
