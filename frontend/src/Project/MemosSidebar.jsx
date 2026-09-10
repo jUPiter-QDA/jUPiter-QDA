@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { deleteMemo, fetchMemos, fetchDocument, fetchSegment } from "../utils/backend-api";
+import { deleteMemo, updateMemo, fetchMemos, fetchDocument, fetchSegment } from "../utils/backend-api";
 
 export default function MemosSidebar({ projectId, codes = [], pushUndoAction, setActiveDocument, setDocumentSegments }) {
   const [memos, setMemos] = useState([]);
@@ -37,8 +37,10 @@ export default function MemosSidebar({ projectId, codes = [], pushUndoAction, se
   const handleSave = async () => {
     if (!editingMemo) return;
     try {
-      const res = updateMemo(editingMemo.id, { text: newMemoText });
-      setMemos((prev) => prev.map((m) => (m.id === res.data.id ? { ...res.data, target_name: m.target_name } : m)));
+      const res = await updateMemo(editingMemo.id, { text: newMemoText });
+      if (!res.ok) throw new Error("Failed to update memo");
+      const updatedMemo = await res.json();
+      setMemos((prev) => prev.map((m) => (m.id === updatedMemo.id ? { ...updatedMemo, target_name: m.target_name } : m)));
       setEditingMemo(null);
       setNewMemoText("");
     } catch {
@@ -51,7 +53,7 @@ export default function MemosSidebar({ projectId, codes = [], pushUndoAction, se
     setMemos((prev) => prev.filter((m) => m.id !== id));
 
     try {
-      deleteMemo();
+      await deleteMemo(id);
       if (pushUndoAction && memoSnapshot) {
         pushUndoAction({ type: "delete-memo", memo: memoSnapshot });
       }

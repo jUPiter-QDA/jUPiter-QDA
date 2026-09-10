@@ -766,7 +766,7 @@ function ProjectPage() {
 
   const handleExportExcel = async (selectedDocIds, selectedCodeIds) => {
     
-      let url = buildUrlToExportExcel(selectedDocIds, selectedCodeIds);
+      let url = buildUrlToExportExcel(id, selectedDocIds, selectedCodeIds);
 
       const link = document.createElement("a");
       link.href = url;

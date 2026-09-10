@@ -57,15 +57,15 @@ export async function exportProjectToRefi(projectId) {
 }
 
 export async function exportProjectToDocx(projectId) {
-  return await fetch(`http://${API_BASE}/projects/${projectId}/codes/export/docx`);
+  return await fetch(`${API_BASE}/projects/${projectId}/codes/export/docx`);
 }
 
 export async function exportProjectSegmentsToCsv(projectId) {
   return await fetch(`${API_BASE}/projects/${projectId}/segments/export/csv`);
 }
 
-export async function buildUrlToExportExcel(selectedDocIds, selectedCodeIds) {
-  let url = `${API_BASE}/projects/${id}/export/excel`;
+export async function buildUrlToExportExcel(projectId, selectedDocIds, selectedCodeIds) {
+  let url = `${API_BASE}/projects/${projectId}/export/excel`;
 
   // Append the filters to the URL as query parameters
   const params = new URLSearchParams();
@@ -260,7 +260,7 @@ export async function createSegmentWithCode(projectId, segmentWithCodeData) {
 }
 
 export async function updateSegment(projectId, segmentId, segmentData) {
-  return await fetch(`${API_BASE}/projects/${projectId}/segments/${seg.id}`, {
+  return await fetch(`${API_BASE}/projects/${projectId}/segments/${segmentId}`, {
             method: 'PUT', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(segmentData)
@@ -293,14 +293,14 @@ export async function createMemo(memoData) {
 }
 
 export async function updateMemo(memoId, updateMemoData) {
-  return await fetch(`${API_BASE}/memos/${editingMemo.id}`, {
+  return await fetch(`${API_BASE}/memos/${memoId}`, {
                      method: "PUT",
                      headers: { "Content-Type": "application/json" },
-                     body: JSON.stringify({ text: newMemoText })});
+                     body: JSON.stringify(updateMemoData)});
 }
 
 export async function deleteMemo(memoId) {
-  return await fetch(`${API_BASE}/memos/${id}`, { method: "DELETE" });
+  return await fetch(`${API_BASE}/memos/${memoId}`, { method: "DELETE" });
 }
 
 export async function transcribeAudio(projectId, selectedLanguage, audioFormData) {
