@@ -1,10 +1,12 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 app.setName('jUPiter QDA');
 const path = require('path');
+const net = require('net');
 const { spawn } = require('child_process');
 
 let mainWindow;
 let backendProcess;
+let backendPort = 8000;
 
 function getWindowIcon() {
   if (process.platform === 'darwin') return path.join(__dirname, 'build', 'logo.icns');
@@ -19,7 +21,8 @@ function createWindow () {
     icon: getWindowIcon(),
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: true, 
+      contextIsolation: true,
+      additionalArguments: [`--backendPort=${backendPort}`],
       preload: path.join(__dirname, 'preload.js')
     }
   });
@@ -44,6 +47,24 @@ function getBackendExecutableName() {
   return process.platform === 'win32' ? 'jupiter-backend.exe' : 'jupiter-backend';
 }
 
+// Pick the port the backend sidecar will listen on: prefer 8000 so the
+// common single-instance case is unchanged, fall back to an OS-assigned
+// ephemeral port when another instance (or anything else) already holds it.
+function pickBackendPort() {
+  return new Promise((resolve) => {
+    const probe = net.createServer();
+    probe.once('error', () => {
+      const ephemeral = net.createServer();
+      ephemeral.once('error', () => resolve(8000)); // last resort; the spawn below will fail loudly
+      ephemeral.listen(0, '127.0.0.1', () => {
+        const port = ephemeral.address().port;
+        ephemeral.close(() => resolve(port));
+      });
+    });
+    probe.listen(8000, '127.0.0.1', () => probe.close(() => resolve(8000)));
+  });
+}
+
 // Function to start the FastAPI sidecar
 function startBackend() {
   if (app.isPackaged) {
@@ -60,7 +81,7 @@ function startBackend() {
     
     backendProcess = spawn(backendPath, [], {
       cwd: path.join(process.resourcesPath, 'backend'),
-      env: { ...process.env, JUPITER_DATA_DIR: userDataPath }
+      env: { ...process.env, JUPITER_DATA_DIR: userDataPath, JUPITER_PORT: String(backendPort) }
     });
 
     backendProcess.on('error', (err) => console.error(`Failed to start backend: ${err.message}`));
@@ -108,11 +129,15 @@ function waitForBackend(url, timeoutMs = 15000, intervalMs = 300) {
 }
 
 app.whenReady().then(async() => {
+  if (app.isPackaged) {
+    backendPort = await pickBackendPort();
+    log(`Selected backend port: ${backendPort}`);
+  }
   startBackend();
 
    if (app.isPackaged) {
     try {
-      await waitForBackend('http://127.0.0.1:8000/');
+      await waitForBackend(`http://127.0.0.1:${backendPort}/`);
       log('Backend is ready.');
     } catch (err) {
       log(`Backend failed to start in time: ${err.message}`);

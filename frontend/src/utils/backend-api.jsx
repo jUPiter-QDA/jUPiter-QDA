@@ -1,4 +1,10 @@
-const API_BASE = "http://127.0.0.1:8000";
+// The packaged app picks the backend port at runtime (Electron passes it via
+// preload). Outside Electron (plain browser / vite dev server) it stays 8000.
+const electronAPI = typeof window !== 'undefined' ? window.electronAPI : undefined;
+const rawPort = electronAPI && typeof electronAPI.getBackendPort === 'function'
+  ? electronAPI.getBackendPort() : 8000;
+const backendPort = Number.isInteger(rawPort) ? rawPort : 8000;
+const API_BASE = `http://127.0.0.1:${backendPort}`;
 
 export async function fetchProjects() {
     try {

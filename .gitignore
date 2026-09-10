@@ -19,7 +19,9 @@ backend/build/
 # Database
 backend/qda_data.db
 *.db
-*.sqlite3
+*.sqlite
+*.db-shm
+*.db-wal
 
 # Electron-builder output
 release/
