@@ -2,9 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base
-from app.routers import audio, codes, documents, folders, memos, projects, segments
+from app.db_migrations import run_startup_migrations
+from app.routers import audio, codes, documents, folders, memos, projects, segments, settings
 
 Base.metadata.create_all(bind=engine)
+run_startup_migrations(engine)
 
 app = FastAPI(title="jUPiter QDA API")
 
@@ -27,6 +29,7 @@ app.include_router(segments.router)
 app.include_router(folders.router)
 app.include_router(memos.router)
 app.include_router(audio.router)
+app.include_router(settings.router)
 
 if __name__ == "__main__":
     import os

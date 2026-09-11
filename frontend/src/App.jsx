@@ -1,6 +1,7 @@
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import DashboardPage from './Dashboard/DashboardPage';
 import ProjectPage from './Project/ProjectPage';
+import SettingsPage from './Settings/SettingsPage';
 import ToastProvider from './context/ToastProvider';
 
 function App() {
@@ -10,6 +11,7 @@ function App() {
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/project/:id" element={<ProjectPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Routes>
     </HashRouter>
     </ToastProvider>

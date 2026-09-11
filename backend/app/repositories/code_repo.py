@@ -22,7 +22,8 @@ class CodeRepository:
             name=code_data.name,
             color=code_data.color,
             project_id=project_id,
-            parent_id=code_data.parent_id
+            parent_id=code_data.parent_id,
+            ai_suggested=code_data.ai_suggested
         )
         self.db.add(new_code)
         self.db.commit()
@@ -36,6 +37,7 @@ class CodeRepository:
         if code:
             if update_data.name is not None: code.name = update_data.name
             if update_data.color is not None: code.color = update_data.color
+            if update_data.ai_suggested is not None: code.ai_suggested = update_data.ai_suggested
             self.db.commit()
             self.db.refresh(code)
         return code

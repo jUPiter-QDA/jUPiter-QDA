@@ -38,6 +38,8 @@ class ProjectRepository:
         if project:
             project.name = project_data.name
             project.description = project_data.description
+            if project_data.llm_system_prompt is not None: project.llm_system_prompt = project_data.llm_system_prompt
+            if project_data.llm_user_prompt is not None: project.llm_user_prompt = project_data.llm_user_prompt
             self.db.commit()
             self.db.refresh(project)
         return project

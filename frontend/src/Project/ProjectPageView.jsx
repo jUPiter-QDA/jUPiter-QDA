@@ -49,8 +49,8 @@ const ProjectPageView = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
-  const handleSaveSettings = async (newName, newDescription) => {
-    const ok = await saveProjectDetails(newName, newDescription);
+  const handleSaveSettings = async (newName, newDescription, llmSystemPrompt, llmUserPrompt) => {
+    const ok = await saveProjectDetails(newName, newDescription, llmSystemPrompt, llmUserPrompt);
     if (ok) setIsSettingsOpen(false); // Close the modal
   };
 
@@ -421,6 +421,8 @@ const ProjectPageView = () => {
         currentName={projectDetails.name}
         currentDescription={projectDetails.description}
         currentLocalPath={projectDetails.localPath}
+        currentLLMSystemPrompt={projectDetails.llmSystemPrompt}
+        currentLLMUserPrompt={projectDetails.llmUserPrompt}
         onSave={handleSaveSettings}
         onDelete={deleteProjectAndNavigate}
       />

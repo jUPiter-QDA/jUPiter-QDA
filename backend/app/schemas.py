@@ -14,9 +14,11 @@ class ProjectResponse(BaseModel):
     name: str
     description: Optional[str] = None
     local_path: Optional[str] = None
-    document_count: Optional[int] = 0 
+    document_count: Optional[int] = 0
     code_count: Optional[int] = 0
     last_accessed: Optional[datetime] = None
+    llm_system_prompt: Optional[str] = None
+    llm_user_prompt: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -25,6 +27,8 @@ class ProjectUpdate(BaseModel):
     name: str
     description: Optional[str] = None
     local_path: Optional[str] = None
+    llm_system_prompt: Optional[str] = None
+    llm_user_prompt: Optional[str] = None
 
 # Code Schemas
 
@@ -35,8 +39,9 @@ class CodeSummary(BaseModel):
     project_id: int
     parent_id: Optional[int] = None
     order_index: int
+    ai_suggested: bool = False
     segments: list[SegmentSummary] = Field(exclude=True)
-    
+
     @computed_field
     @property
     def frequency(self) -> int:
@@ -46,11 +51,13 @@ class CodeCreate(BaseModel):
     name: str
     color: str = "#FFFFFF"
     parent_id: Optional[int] = None
+    ai_suggested: bool = False
 
 class CodeUpdate(BaseModel):
     name: Optional[str] = None
     color: Optional[str] = None
     parent_id: Optional[int] = None
+    ai_suggested: Optional[bool] = None
 
 class CodeReorderItem(BaseModel):
     id: int
@@ -155,3 +162,36 @@ class DocumentReorderRequest(BaseModel):
 
 class DocumentMetadataUpdate(BaseModel):
     metadata: Dict[str, Optional[str]]
+
+
+# LLM Settings Schemas
+
+class LLMSettingsUpdate(BaseModel):
+    api_url: str
+    model: str
+    api_key: Optional[str] = None   # None = leave unchanged; "" = clear the key
+    temperature: Optional[float] = Field(None, ge=0, le=2)   # None = leave unchanged
+
+class LLMSettingsResponse(BaseModel):
+    api_url: str
+    model: str
+    api_key_set: bool
+    api_key_masked: Optional[str] = None
+    temperature: float
+
+class LLMSettingsTestRequest(BaseModel):
+    api_url: Optional[str] = None   # override the saved value for this test only
+    model: Optional[str] = None
+    api_key: Optional[str] = None   # omitted/blank → use the saved key; typed value used as-is
+    temperature: Optional[float] = Field(None, ge=0, le=2)   # override the saved value for this test only
+
+# AI Code Suggestion Schemas
+
+class CodeSuggestionRequest(BaseModel):
+    excerpt: str
+    document_id: Optional[int] = None   # accepted, reserved for future context
+
+class CodeSuggestion(BaseModel):
+    name: str
+    rationale: Optional[str] = None
+    existing_code_id: Optional[int] = None

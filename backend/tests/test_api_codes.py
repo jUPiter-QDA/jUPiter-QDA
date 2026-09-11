@@ -1,4 +1,5 @@
-"""API tests for the codes router: CRUD, frequency, subtree delete, merge, docx export.
+"""API tests for the codes router: CRUD, frequency, subtree delete, merge, docx export,
+AI suggestions, and the ai_suggested flag.
 
 Note the trailing-slash paths: the codes router is mounted at
 /projects/{id}/codes/ with the list and create routes registered as "/".
@@ -7,6 +8,8 @@ import io
 
 import docx as python_docx
 
+import app.models as models
+from app.services.llm_service import llm_service, LLMResponseError
 from tests.helpers import make_code, make_document, make_memo, make_segment
 
 
@@ -168,3 +171,89 @@ def test_export_codebook_docx(client, db, project):
 
 def test_export_codebook_docx_404(client):
     assert client.get("/projects/9999/codes/export/docx").status_code == 404
+
+
+# --- ai_suggested flag -------------------------------------------------------
+
+def test_create_code_defaults_not_ai_suggested(client, project):
+    body = _create_code(client, project.id, "Human")
+    assert body["ai_suggested"] is False
+
+
+def test_create_code_with_ai_suggested_flag(client, db, project):
+    body = _create_code(client, project.id, "AI Code", ai_suggested=True)
+    assert body["ai_suggested"] is True
+
+    db.expire_all()  # stale-session rule: repos commit on the request session
+    persisted = db.query(models.Code).filter(models.Code.id == body["id"]).first()
+    assert persisted.ai_suggested is True
+
+
+def test_update_code_can_unflag_ai_suggested(client, project):
+    code = _create_code(client, project.id, "AI Code", ai_suggested=True)
+
+    response = client.put(f"/projects/{project.id}/codes/{code['id']}",
+                          json={"ai_suggested": False})
+    assert response.status_code == 200
+    assert response.json()["ai_suggested"] is False
+
+
+def test_update_code_omitting_flag_leaves_it_true(client, project):
+    code = _create_code(client, project.id, "AI Code", ai_suggested=True)
+
+    response = client.put(f"/projects/{project.id}/codes/{code['id']}",
+                          json={"name": "Renamed"})
+    assert response.status_code == 200
+    assert response.json()["ai_suggested"] is True
+
+
+# --- AI suggestions endpoint -------------------------------------------------
+
+def _seed_llm_settings(db, api_url="https://api.test/v1", model="test-model",
+                        api_key="sk-test"):
+    db.add(models.LLMSettings(id=1, api_url=api_url, model_name=model,
+                              api_key=api_key))
+    db.commit()
+
+
+def test_suggest_codes_404_unknown_project(client):
+    assert client.post("/projects/9999/codes/suggest",
+                       json={"excerpt": "text"}).status_code == 404
+
+
+def test_suggest_codes_409_when_not_configured(client, project):
+    response = client.post(f"/projects/{project.id}/codes/suggest",
+                           json={"excerpt": "text"})
+    assert response.status_code == 409
+    assert response.json()["detail"] == "LLM settings are not configured."
+
+
+def test_suggest_codes_returns_suggestions(client, db, project, monkeypatch):
+    _seed_llm_settings(db)
+    existing = make_code(db, project, name="Theme")
+
+    monkeypatch.setattr(llm_service, "_chat_completion",
+                        lambda *a, **k: '{"suggestions": [{"name": "Theme"},'
+                                       ' {"name": "Fresh", "rationale": "new"}]}')
+
+    response = client.post(f"/projects/{project.id}/codes/suggest",
+                           json={"excerpt": "some selection"})
+
+    assert response.status_code == 200
+    suggestions = response.json()
+    assert suggestions[0] == {"name": "Theme", "rationale": None,
+                              "existing_code_id": existing.id}
+    assert suggestions[1]["existing_code_id"] is None
+
+
+def test_suggest_codes_502_on_llm_failure(client, db, project, monkeypatch):
+    _seed_llm_settings(db)
+
+    def raise_response(*args, **kwargs):
+        raise LLMResponseError("LLM did not return valid JSON.")
+    monkeypatch.setattr(llm_service, "_chat_completion", raise_response)
+
+    response = client.post(f"/projects/{project.id}/codes/suggest",
+                           json={"excerpt": "text"})
+    assert response.status_code == 502
+    assert response.json()["detail"] == "LLM did not return valid JSON."

@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import ConfirmDeleteModal from "../Modal/ConfirmDeleteModal";
+import { DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT } from "../utils/llmDefaults";
 
-function ProjectSettingsModal({ isOpen, onClose, currentName, currentDescription, currentLocalPath, onSave, onDelete }) {
+function ProjectSettingsModal({ isOpen, onClose, currentName, currentDescription, currentLocalPath, currentLLMSystemPrompt, currentLLMUserPrompt, onSave, onDelete }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [llmSystemPrompt, setLLMSystemPrompt] = useState("");
+  const [llmUserPrompt, setLLMUserPrompt] = useState("");
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
@@ -15,6 +18,8 @@ function ProjectSettingsModal({ isOpen, onClose, currentName, currentDescription
     if (isOpen) {
       setName(currentName || "");
       setDescription(currentDescription || "");
+      setLLMSystemPrompt(currentLLMSystemPrompt || "");
+      setLLMUserPrompt(currentLLMUserPrompt || "");
       setShowConfirmDelete(false);
     }
   }
@@ -26,33 +31,73 @@ function ProjectSettingsModal({ isOpen, onClose, currentName, currentDescription
       alert("Project name cannot be empty.");
       return;
     }
-    onSave(name, description);
+    onSave(name, description, llmSystemPrompt, llmUserPrompt);
   };
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div style={{ backgroundColor: '#242424', padding: '30px', borderRadius: '8px', border: '1px solid #444', width: '400px', color: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
-        
+      <div style={{ backgroundColor: '#242424', padding: '30px', borderRadius: '8px', border: '1px solid #444', width: '520px', color: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', maxHeight: '90vh', overflowY: 'auto' }}>
+
         <h3 style={{ marginTop: 0 }}> Project Settings</h3>
-        
+
         <div style={{ marginTop: '20px', marginBottom: '15px' }}>
           <label style={{ fontSize: '12px', color: '#aaa', display: 'block', marginBottom: '5px' }}>Project Name</label>
-          <input 
-            type="text" 
-            value={name} 
-            onChange={(e) => setName(e.target.value)} 
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             autoFocus
-            style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #555', backgroundColor: '#111', color: 'white' }} 
+            style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #555', backgroundColor: '#111', color: 'white' }}
           />
         </div>
 
         <div style={{ marginBottom: '25px' }}>
           <label style={{ fontSize: '12px', color: '#aaa', display: 'block', marginBottom: '5px' }}>Description</label>
-          <textarea 
-            value={description} 
-            onChange={(e) => setDescription(e.target.value)} 
-            rows="4" 
-            style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #555', backgroundColor: '#111', color: 'white', resize: 'vertical' }} 
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows="4"
+            style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #555', backgroundColor: '#111', color: 'white', resize: 'vertical' }}
+          />
+        </div>
+
+        {/* AI PROMPT TEMPLATES */}
+        <div style={{ marginBottom: '25px' }}>
+          <label style={{ fontSize: '12px', color: '#aaa', display: 'block', marginBottom: '5px' }}>AI Prompt Templates</label>
+          <p style={{ fontSize: '11px', color: '#666', margin: '0 0 10px 0' }}>
+            Messages sent to the LLM when asking for code suggestions. Placeholders: {'{excerpt}'} = selected text, {'{codes}'} = existing codebook names.
+          </p>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+            <span style={{ fontSize: '11px', color: '#888' }}>System message</span>
+            <button
+              onClick={() => setLLMSystemPrompt(DEFAULT_SYSTEM_PROMPT)}
+              style={{ padding: '2px 8px', backgroundColor: 'transparent', border: '1px solid #555', color: '#aaa', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+            >
+              Reset to default
+            </button>
+          </div>
+          <textarea
+            value={llmSystemPrompt}
+            onChange={(e) => setLLMSystemPrompt(e.target.value)}
+            rows="5"
+            style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #555', backgroundColor: '#111', color: 'white', resize: 'vertical', fontSize: '12px', marginBottom: '12px' }}
+          />
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+            <span style={{ fontSize: '11px', color: '#888' }}>User message</span>
+            <button
+              onClick={() => setLLMUserPrompt(DEFAULT_USER_PROMPT)}
+              style={{ padding: '2px 8px', backgroundColor: 'transparent', border: '1px solid #555', color: '#aaa', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+            >
+              Reset to default
+            </button>
+          </div>
+          <textarea
+            value={llmUserPrompt}
+            onChange={(e) => setLLMUserPrompt(e.target.value)}
+            rows="5"
+            style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #555', backgroundColor: '#111', color: 'white', resize: 'vertical', fontSize: '12px' }}
           />
         </div>
 

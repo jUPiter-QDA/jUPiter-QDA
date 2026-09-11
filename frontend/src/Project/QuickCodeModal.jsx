@@ -9,7 +9,8 @@ export default function QuickCodeModal({ isOpen,
                                          selectionRect,
                                          selectionText,
                                          onApply,
-                                         onCancel }) {
+                                         onCancel,
+                                         onAskAI }) {
   const { projectCodes } = useWorkspace();
   const codes = projectCodes || [];
 
@@ -161,6 +162,21 @@ export default function QuickCodeModal({ isOpen,
               Cancel
             </button>
           </div>
+          {onAskAI && (
+            <button
+              onClick={onAskAI}
+              onMouseOver={(e) => e.currentTarget.style.borderColor = "#b9a5ff"}
+              onMouseOut={(e) => e.currentTarget.style.borderColor = "#555"}
+              style={{
+                marginTop: "8px", width: "100%", padding: "8px 10px",
+                backgroundColor: "transparent", border: "1px solid #555",
+                color: "#b9a5ff", borderRadius: "6px", cursor: "pointer", fontSize: "12px",
+                transition: "all 0.2s ease"
+              }}
+            >
+              ✨ Ask AI
+            </button>
+          )}
         </div>
     )
 

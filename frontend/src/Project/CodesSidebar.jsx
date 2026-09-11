@@ -532,6 +532,24 @@ return (
                       }}>
                         {code.name}
                       </span>
+
+                      {code.ai_suggested && (
+                        <span
+                          title="Suggested by AI"
+                          style={{
+                            backgroundColor: '#3a2a55',
+                            color: '#b9a5ff',
+                            fontSize: '10px',
+                            padding: '1px 6px',
+                            borderRadius: '10px',
+                            fontWeight: 'bold',
+                            flexShrink: 0,
+                            border: '1px solid #555'
+                          }}
+                        >
+                          AI
+                        </span>
+                      )}
                     </div>
 
                     {/* RIGHT SIDE: Rigid buttons that refuse to shrink or disappear */}

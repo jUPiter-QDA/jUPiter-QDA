@@ -30,7 +30,35 @@ const ToastProvider = ({ children }) => {
     [status, progress, setStatus, setProgress, showToast, showToastSticky],
   );
 
-  return <ToastContext.Provider value={value}>{children}</ToastContext.Provider>;
+  return (
+    <ToastContext.Provider value={value}>
+      {children}
+      {/* The one place the toast status is rendered, so every page shows it. */}
+      {status && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "24px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 2000,
+            backgroundColor: "#23232a",
+            border: "1px solid #444",
+            borderRadius: "10px",
+            padding: "10px 18px",
+            color: "#fff",
+            fontSize: "14px",
+            boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4)",
+            maxWidth: "90vw",
+            textAlign: "center",
+            pointerEvents: "none",
+          }}
+        >
+          {status}
+        </div>
+      )}
+    </ToastContext.Provider>
+  );
 };
 
 export default ToastProvider;

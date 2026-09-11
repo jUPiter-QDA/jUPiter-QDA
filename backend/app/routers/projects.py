@@ -66,7 +66,13 @@ def get_project(project_id: int, repo: ProjectRepository = Depends(get_project_r
     project = repo.get_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    return {"name": project.name, "description": project.description}
+    from app.llm_defaults import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
+    return {
+        "name": project.name,
+        "description": project.description,
+        "llm_system_prompt": project.llm_system_prompt or DEFAULT_SYSTEM_PROMPT,
+        "llm_user_prompt": project.llm_user_prompt or DEFAULT_USER_PROMPT,
+    }
 
 @router.put("/{project_id}", response_model=schemas.ProjectResponse)
 def update_project(project_id: int, project_data: schemas.ProjectUpdate, repo: ProjectRepository = Depends(get_project_repo)):

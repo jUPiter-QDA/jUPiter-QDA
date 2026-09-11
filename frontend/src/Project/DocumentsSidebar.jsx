@@ -14,7 +14,7 @@ function DocumentsSidebar({
   projectId,
   loadDocuments,
 }) {
-  const { status: uploadStatus, progress: uploadProgress } = useToast();
+  const { progress: uploadProgress } = useToast();
   const [folders, setFolders] = useState([]);
   const [newFolderName, setNewFolderName] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -731,7 +731,6 @@ function DocumentsSidebar({
             </div>
           </div>
         )}
-        <div style={{ marginTop: '10px', color: '#646cff', fontSize: '14px', textAlign: 'center' }}>{uploadStatus}</div>
       </div>
 
       {/* SORTING CONTROLS */}

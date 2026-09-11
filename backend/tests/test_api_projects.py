@@ -62,11 +62,37 @@ def test_create_project_existing_target_dir_400(client, tmp_path):
     assert "already exists" in response.json()["detail"]
 
 
-def test_get_project_returns_name_and_description(client):
+def test_get_project_returns_name_description_and_default_templates(client):
+    from app.llm_defaults import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
     project_id = client.post("/projects", json={"name": "Workspace A"}).json()["id"]
     response = client.get(f"/projects/{project_id}")
     assert response.status_code == 200
-    assert response.json() == {"name": "Workspace A", "description": None}
+    assert response.json() == {
+        "name": "Workspace A",
+        "description": None,
+        "llm_system_prompt": DEFAULT_SYSTEM_PROMPT,
+        "llm_user_prompt": DEFAULT_USER_PROMPT,
+    }
+
+
+def test_update_project_persists_llm_templates(client, db):
+    project_id = client.post("/projects", json={"name": "T"}).json()["id"]
+
+    response = client.put(f"/projects/{project_id}", json={
+        "name": "T",
+        "llm_system_prompt": "custom system {excerpt}",
+        "llm_user_prompt": "custom user {codes} {excerpt}",
+    })
+    assert response.status_code == 200
+
+    body = client.get(f"/projects/{project_id}").json()
+    assert body["llm_system_prompt"] == "custom system {excerpt}"
+    assert body["llm_user_prompt"] == "custom user {codes} {excerpt}"
+
+    # PUT without the template fields leaves them unchanged (non-None copy)
+    client.put(f"/projects/{project_id}", json={"name": "T2"})
+    body = client.get(f"/projects/{project_id}").json()
+    assert body["llm_system_prompt"] == "custom system {excerpt}"
 
 
 def test_get_project_404(client):

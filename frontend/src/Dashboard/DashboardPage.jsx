@@ -93,7 +93,15 @@ function Dashboard() {
           </div>
           
           <div style={{ display: "flex", gap: "10px" }}>
-            <button 
+            <button
+              onClick={() => navigate("/settings")}
+              style={{ padding: "10px 16px", backgroundColor: "transparent", color: "#ccc", border: "1px solid #444", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", transition: "all 0.2s" }}
+              onMouseOver={(e) => e.target.style.backgroundColor = "#222"}
+              onMouseOut={(e) => e.target.style.backgroundColor = "transparent"}
+            >
+              Settings
+            </button>
+            <button
               onClick={() => setIsImportModalOpen(true)}
               style={{ padding: "10px 16px", backgroundColor: "transparent", color: "#ccc", border: "1px solid #444", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", transition: "all 0.2s" }}
               onMouseOver={(e) => e.target.style.backgroundColor = "#222"}

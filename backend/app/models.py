@@ -1,8 +1,11 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, and_
+from sqlalchemy import (Column, Integer, String, Text, ForeignKey, DateTime,
+                        Boolean, Float, and_)
 from sqlalchemy.orm import foreign, relationship
 from datetime import datetime, timezone
 
 from app.database import Base
+from app.llm_defaults import (DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT,
+                               DEFAULT_TEMPERATURE)
 
 class Memo(Base):
     __tablename__ = "memos"
@@ -34,6 +37,8 @@ class Project(Base):
                          viewonly=True)
     document_folders = relationship("DocumentFolder", back_populates="project", cascade="all, delete-orphan")
     last_accessed = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    llm_system_prompt = Column(Text, nullable=True, default=lambda: DEFAULT_SYSTEM_PROMPT)
+    llm_user_prompt = Column(Text, nullable=True, default=lambda: DEFAULT_USER_PROMPT)
 
     @property
     def document_count(self):
@@ -71,6 +76,7 @@ class Code(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     order_index = Column(Integer, default=0)
+    ai_suggested = Column(Boolean, nullable=False, default=False)
 
     project = relationship("Project", back_populates="codes")
     segments = relationship("Segment", back_populates="code", cascade="all, delete-orphan")
@@ -118,6 +124,18 @@ class DocumentFolder(Base):
     project = relationship("Project", back_populates="document_folders")
     documents = relationship("Document", back_populates="folder")
     parent = relationship("DocumentFolder", remote_side=[id], backref="children")
+
+
+class LLMSettings(Base):
+    # The app's first global (non-project-scoped) settings: a single row (id=1)
+    # holding the OpenAI-compatible API configuration used by code suggestions.
+    __tablename__ = "llm_settings"
+
+    id = Column(Integer, primary_key=True)
+    api_url = Column(Text, nullable=False, default="")
+    api_key = Column(Text, nullable=False, default="")
+    model_name = Column(String, nullable=False, default="")
+    temperature = Column(Float, nullable=False, default=DEFAULT_TEMPERATURE)
 
 
 # === USER FUNCTIONALITY DISABLED FOR NOW ===

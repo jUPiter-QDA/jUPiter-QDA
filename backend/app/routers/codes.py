@@ -7,6 +7,9 @@ from app.database import get_db
 import app.schemas as schemas
 from app.repositories import CodeRepository
 from app.services.docx_service import create_codebook_docx
+from app.services.llm_service import (llm_service, LLMConfigError,
+                                       LLMConnectionError, LLMResponseError)
+from app.llm_defaults import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT
 
 
 router = APIRouter(prefix="/projects/{project_id}/codes", tags=["Codes"])
@@ -52,20 +55,46 @@ def delete_code(project_id: int,
         raise HTTPException(status_code=404, detail="Code not found")
 
 @router.post("/merge", response_model=schemas.CodeSummary)
-def merge_codes(project_id: int, 
-                merge_req: schemas.CodeMergeRequest, 
+def merge_codes(project_id: int,
+                merge_req: schemas.CodeMergeRequest,
                 repo: CodeRepository = Depends(get_code_repo)):
     success = repo.merge(
-        project_id, 
-        merge_req.source_code_id, 
+        project_id,
+        merge_req.source_code_id,
         merge_req.target_code_id,
-        merge_req.new_name,   
-        merge_req.new_color 
+        merge_req.new_name,
+        merge_req.new_color
     )
     if not success:
         raise HTTPException(status_code=400, detail="Merge failed. Ensure both codes exist.")
     return repo.get(project_id, merge_req.target_code_id)
-  
+
+@router.post("/suggest", response_model=list[schemas.CodeSuggestion])
+def suggest_codes(project_id: int,
+                  request: schemas.CodeSuggestionRequest,
+                  db: Session = Depends(get_db)):
+    """Ask the configured OpenAI-compatible LLM to suggest codes for an excerpt."""
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    settings = db.query(models.LLMSettings).filter(models.LLMSettings.id == 1).first()
+    codes = db.query(models.Code).filter(models.Code.project_id == project_id).all()
+    try:
+        return llm_service.suggest_codes(
+            settings,
+            project.llm_system_prompt or DEFAULT_SYSTEM_PROMPT,
+            project.llm_user_prompt or DEFAULT_USER_PROMPT,
+            request.excerpt,
+            codes,
+        )
+    except LLMConfigError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except LLMConnectionError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except LLMResponseError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Suggestion failed: {e}")
 @router.get("/export/docx")
 def export_codebook_docx(project_id: int, db: Session = Depends(get_db)):
     # fetch project

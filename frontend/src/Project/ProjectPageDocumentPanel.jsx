@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import MarginSidebar from "./MarginSidebar";
-import { createCode, createMemoForSegment, deleteSegment, fetchDocument, fetchSegmentsForDocument, createSegmentWithCode, updateSegment, createDocument, updateDocumentMetadata, updateDocumentContent, buildPdfPreviewUrl } from "../utils/backend-api";
-import { hexToRGBA } from "../utils/colors";
+import { createCode, createMemoForSegment, deleteSegment, fetchDocument, fetchSegmentsForDocument, createSegmentWithCode, updateSegment, createDocument, updateDocumentMetadata, updateDocumentContent, buildPdfPreviewUrl, suggestCodes } from "../utils/backend-api";
+import { hexToRGBA, getRandomColor } from "../utils/colors";
 import SegmentMemoModal from "./SegmentMemoModal";
 import QuickCodeModal from "./QuickCodeModal";
+import AISuggestModal from "./AISuggestModal";
 import PdfPreviewPanel from "./PdfPreviewPanel";
 import DocumentDetailsTab from "./DocumentDetailsTab";
 import { useToast } from "../context/ToastContext";
@@ -38,6 +39,9 @@ const ProjectPageDocumentPanel = ({ viewerRef }) => {
   const [selectionRect, setSelectionRect] = useState(null);
   const [selectionText, setSelectionText] = useState("");
   const [selectionOffsets, setSelectionOffsets] = useState(null);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+  const [aiLoading, setAiLoading] = useState(false);
   const [isPdfPreviewCollapsed, setIsPdfPreviewCollapsed] = useState(false);
   
   // Edit Mode & Real-Time Segment State
@@ -153,6 +157,8 @@ const ProjectPageDocumentPanel = ({ viewerRef }) => {
     setSelectionRect(null);
     setSelectionOffsets(null);
     setQuickMenuOpen(false);
+    setAiModalOpen(false);
+    setAiSuggestions([]);
   };
 
   const handleTextSelection = (e) => {
@@ -275,6 +281,78 @@ const ProjectPageDocumentPanel = ({ viewerRef }) => {
     } catch (error) {
       console.error(error);
       showToastSticky("Failed to apply code.");
+    }
+  };
+
+  // Ask the configured LLM for code suggestions for the current selection.
+  const handleAskAI = async () => {
+    if (!selectionText || !activeDocument) return;
+    setQuickMenuOpen(false);
+    setAiSuggestions([]);
+    setAiLoading(true);
+    setAiModalOpen(true);
+    showToastSticky("Asking AI for code suggestions...");
+    try {
+      const res = await suggestCodes(projectId, selectionText);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to get suggestions");
+      setAiSuggestions(data);
+      showToast(`${data.length} suggestion(s) ready.`, 3000);
+    } catch (error) {
+      showToastSticky(error.message || "Failed to get suggestions.");
+      setAiModalOpen(false);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // Apply one AI suggestion: reuse the existing code when the LLM matched one,
+  // otherwise create a new code flagged as AI-suggested — then code the
+  // excerpt with it (same tail as handleQuickCodeAction, so undo works).
+  const handleApplySuggestion = async (suggestion) => {
+    if (!selectionText || !activeDocument || !selectionOffsets) return false;
+    showToastSticky("Applying suggestion...");
+    try {
+      let finalCodeID;
+      let createdCode = null;
+      if (suggestion.existing_code_id) {
+        finalCodeID = suggestion.existing_code_id;
+      } else {
+        const codeResponse = await createCode(projectId, {
+          name: suggestion.name,
+          color: getRandomColor(),
+          ai_suggested: true,
+        });
+        const createdCodeData = await codeResponse.json();
+        if (!codeResponse.ok) throw new Error(createdCodeData.detail || "Failed to create code");
+        createdCode = createdCodeData;
+        finalCodeID = createdCode.id;
+        loadCodes();
+      }
+
+      const segRes = await createSegmentWithCode(projectId, {
+        document_id: activeDocument.id,
+        code_id: finalCodeID,
+        start_char: selectionOffsets.start,
+        end_char: selectionOffsets.end,
+        content: selectionText,
+      });
+      const segment = await segRes.json();
+      if (!segRes.ok) throw new Error(segment.detail || "Failed to save segment");
+
+      pushAction({
+        type: createdCode ? "create-quick-code" : "create-segment",
+        code: createdCode,
+        segments: [segment],
+      });
+      setDocumentSegments((prev) => [...prev, segment]);
+      loadCodes();
+      showToast(`Applied "${suggestion.name}".`, 3000);
+      return true;
+    } catch (error) {
+      console.error(error);
+      showToastSticky("Failed to apply suggestion.");
+      return false;
     }
   };
 
@@ -1029,6 +1107,19 @@ const ProjectPageDocumentPanel = ({ viewerRef }) => {
           selectionRect={selectionRect}
           selectionText={selectionText}
           onApply={handleQuickCodeAction}
+          onCancel={clearTextSelection}
+          onAskAI={handleAskAI}
+        />
+      )}
+
+      {aiModalOpen && selectionRect && (
+        <AISuggestModal
+          isOpen={aiModalOpen}
+          selectionRect={selectionRect}
+          selectionText={selectionText}
+          suggestions={aiSuggestions}
+          isLoading={aiLoading}
+          onApplySuggestion={handleApplySuggestion}
           onCancel={clearTextSelection}
         />
       )}

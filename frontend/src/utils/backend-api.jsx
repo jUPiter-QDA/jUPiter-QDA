@@ -324,3 +324,34 @@ export function normalizeMetadata (doc) {
   }
   return doc.metadata;
 };
+
+// --- LLM settings and AI code suggestions -----------------------------------
+
+export async function fetchLLMSettings() {
+  return await fetch(`${API_BASE}/settings/llm`)
+    .then((res) => res.json());
+};
+
+export async function updateLLMSettings(settingsData) {
+  return await fetch(`${API_BASE}/settings/llm`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settingsData),
+  });
+};
+
+export async function testLLMConnection(testData) {
+  return await fetch(`${API_BASE}/settings/llm/test`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(testData),
+  });
+};
+
+export async function suggestCodes(projectId, excerpt) {
+  return await fetch(`${API_BASE}/projects/${projectId}/codes/suggest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ excerpt }),
+  });
+};
