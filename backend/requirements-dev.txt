@@ -1,0 +1,4 @@
+# Dev/test-only dependencies — NOT needed at runtime.
+# Runtime pins stay in requirements.txt (httpx is already pinned there,
+# which fastapi.testclient.TestClient requires).
+pytest==9.1.1
